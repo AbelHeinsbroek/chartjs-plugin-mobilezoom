@@ -1,2 +1,1 @@
-# chartjs-plugin-mobilezoom
-High performance mobile zooming
+# chartjs-plugin-interpolate
