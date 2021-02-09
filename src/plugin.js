@@ -1,8 +1,12 @@
+import Chart from 'chart.js'
+import Hammer from 'hammerjs'
+
 var mobileZoomPlugin = {
 
-  id: 'mobileZoom',
+  id: 'mobilezoom',
 
   afterInit: function(chart) {
+
 
     if (chart.config.options.scales.xAxes.length == 0) {
       return
@@ -23,31 +27,67 @@ var mobileZoomPlugin = {
     chart.mobileZoom.c3 = chart.mobileZoom.ca3.getContext('2d')
 
 
-    chart.mobileZoom.hammer = new Hammer(chart.canvas)
+    var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    if(iOS) {
+      chart.mobileZoom.hammer = new Hammer(chart.canvas,{touchAction: 'auto'})
+    } else {
+      chart.mobileZoom.hammer = new Hammer(chart.canvas)
+    }
+
+    // enable pinch event
+    chart.mobileZoom.hammer.get('pinch').set({enable: true})
+
+    chart.canvas.addEventListener("touchstart", function(event) {
+      if (event.touches.length >= 2) {
+        chart.mobileZoom.hammer.get("pinch").set({ enable: true });
+      }
+    });
+
+    chart.canvas.addEventListener("touchend", function(event) {
+      if (event.touches.length < 2) {
+        chart.mobileZoom.hammer.get("pinch").set({ enable: false });
+      }
+    });
+
+    chart.mobileZoom.hammer.get( 'pan' ).set({
+      direction: Hammer.DIRECTION_HORIZONTAL,
+    });
 
     // enable pinch event
     chart.mobileZoom.hammer.get('pinch').set({enable: true})
     // add event listeners
     // panning
     chart.mobileZoom.hammer.on('panstart', function(ev) { 
+      ev.preventDefault()
       this.panStart(chart, ev)
     }.bind(this))
     chart.mobileZoom.hammer.on('panmove', function(ev) { 
+      ev.preventDefault()
       this.panMove(chart, ev)
     }.bind(this))
     chart.mobileZoom.hammer.on('panend', function(ev) { 
+      ev.preventDefault()
       this.endPanZoom(chart)
     }.bind(this))
     // zooming
     chart.mobileZoom.hammer.on('pinchstart', function(ev) { 
+      ev.preventDefault()
       this.pinchStart(chart, ev)
     }.bind(this))
     chart.mobileZoom.hammer.on('pinchmove', function(ev) { 
+      ev.preventDefault()
       this.pinchMove(chart, ev)
     }.bind(this))
     chart.mobileZoom.hammer.on('pinchend', function(ev) { 
+      ev.preventDefault()
       this.pinchEnd(chart, ev)
     }.bind(this))
+
+    chart.mobileZoom.hammer.on('doubletap', function(ev) { 
+      ev.preventDefault()
+      chart.options.plugins.mobilezoom.callbacks.doubleTap()
+    })
   },
 
   getXScale: function(chart) {
@@ -63,6 +103,10 @@ var mobileZoomPlugin = {
     } else {
       x1 = ev.pointers[0].clientX; x2 = ev.pointers[1].clientX
     }
+    // get page position
+    var rect = ev.target.getBoundingClientRect();
+    x1 -= rect.left
+    x2 -= rect.left
 
     var scale = this.getXScale(chart)
     return [scale.getValueForPixel(x1),scale.getValueForPixel(x2)]
@@ -79,7 +123,7 @@ var mobileZoomPlugin = {
   panEnd: function(chart, ev) {
     this.endPanZoom(chart)
   },
-  pinchStart(chart, ev) {
+  pinchStart: function(chart, ev) {
     var pointers = this.getPointers(chart, ev)
     this.startPanZoom(chart, pointers[0], pointers[1])
   },
@@ -108,7 +152,7 @@ var mobileZoomPlugin = {
     var width = xmax-xmin
     var height = ymin-ymax
     // capture chart area
-    pr = window.devicePixelRatio;
+    var pr = window.devicePixelRatio;
     chart.mobileZoom.imageData = chart.ctx.getImageData(0,0,chart.canvas.width*pr,chart.canvas.height*pr)
   },
   doPanZoom: function(chart, x11, x22) {
@@ -116,7 +160,7 @@ var mobileZoomPlugin = {
     var x2 = chart.mobileZoom.x2
     var xmin_current = chart.mobileZoom.xmin_current
 
-    var width = this.getXScale(chart).max - this.getXScale().min
+    var width = this.getXScale(chart).max - this.getXScale(chart).min
     var scale = (x11 != x22) ? (x2-x1) / (x22-x11) : 1
     var xmin_target = x1-x11*scale + xmin_current * scale
     var xmax_target = xmin_target + width * scale
@@ -132,6 +176,12 @@ var mobileZoomPlugin = {
       chart.options.scales.xAxes[0].ticks.max = chart.mobileZoom.xmax_target
     }
     chart.update(0)
+    // afterzoom
+    if(xScaleType == 'time') {
+      chart.options.plugins.mobilezoom.callbacks.afterZoomPan(new Date(chart.mobileZoom.xmin_target), new Date(chart.mobileZoom.xmax_target))
+    } else {
+      chart.options.plugins.mobilezoom.callbacks.afterZoomPan(chart.mobileZoom.xmin_target, chart.mobileZoom.xmax_target)
+    }
   },
 
   clip: function(chart, scale, xmin_target, xmax_target) {
@@ -161,7 +211,7 @@ var mobileZoomPlugin = {
     var dwidth = dx2-dx
 
     // get pixel ratio
-    pr = window.devicePixelRatio;
+    var pr = window.devicePixelRatio;
     // paste image data to canvas 2
     chart.mobileZoom.c2.putImageData(chart.mobileZoom.imageData,0,0)
     // copy and rescale image to canvas 3 with scale and offset

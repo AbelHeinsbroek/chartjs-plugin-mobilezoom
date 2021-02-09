@@ -19,6 +19,7 @@ export default {
 		'chart.js'
 	],
 	globals: {
-		'chart.js': 'Chart'
-	}
+		'chart.js': 'Chart',
+		'hammerjs': 'Hammer'
+	},
 };

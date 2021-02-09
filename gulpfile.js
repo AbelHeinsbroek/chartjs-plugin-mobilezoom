@@ -42,7 +42,7 @@ gulp.task('build', function() {
 			.pipe(source(pkg.name + '.js'))
 			.pipe(gulp.dest(out))
 			.pipe(rename(pkg.name + '.min.js'))
-			.pipe(streamify(uglify({output: {comments: 'some'}})))
+			.pipe(streamify(uglify({output: {comments: 'some'}}))).on('error', function(err) { gutil.log(gutil.colors.red('[Error]'), err.toString()); })
 			.pipe(gulp.dest(out));
 	};
 
